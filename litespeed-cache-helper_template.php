@@ -191,86 +191,24 @@
 
     <h1 class="wp-heading-inline page-title">LiteSpeed Cache Helper <small style="font-size: 13px; font-weight: 400; color: #646970; margin-left: 1px; vertical-align: middle;">v1.0.1</small></h1>
     <hr class="wp-header-end">
-
+    
     <?php
-    if( !lsc_debug_show_admin_content() ){ ?>
-        <div class="lsc-header-actions">
-            <a href="<?php echo esc_url(lsc_debug_admin_create_link()); ?>" class="button">&larr; Go back to Dashboard</a>
-        </div>
-    <?php
+    // Pull post-redirect results from the transient (PRG)
+    $lsc_feedback     = lsc_debug_get_feedback();
+    $lsc_notices      = ($lsc_feedback && !empty($lsc_feedback['notices']))     ? $lsc_feedback['notices']     : array();
+    $lsc_render       = ($lsc_feedback && !empty($lsc_feedback['render_html'])) ? $lsc_feedback['render_html'] : '';
+    $img_optm_results = ($lsc_feedback && !empty($lsc_feedback['img_optm']))    ? $lsc_feedback['img_optm']    : null;
+
+    // Admin notices
+    foreach ( $lsc_notices as $lsc_n ) {
+        echo '<div class="notice notice-' . esc_attr($lsc_n[0]) . ' is-dismissible"><p>' . $lsc_n[1] . '</p></div>';
     }
 
-    // Process Form Actions (Auto Purge Toggle)
-    if (isset($_POST['lsc_helper_action']) && $_POST['lsc_helper_action'] === 'toggle_auto_purge') {
-        check_admin_referer('lsc_helper_toggle_purge'); // Check nonce ONLY if this specific action is called
-        $current_status = get_option('lsc_helper_disable_auto_purge', 'no');
-        $new_status = ($current_status === 'yes') ? 'no' : 'yes';
-        update_option('lsc_helper_disable_auto_purge', $new_status);
-        echo '<div class="notice notice-success is-dismissible"><p>Auto Purge setting updated successfully.</p></div>';
-    }
-
-    // Process Metabox Clears
-    if (isset($_POST['lsc_helper_action']) && $_POST['lsc_helper_action'] === 'clear_metabox_option' && check_admin_referer('lsc_helper_clear_metabox')) {
-        $meta_key = isset($_POST['metabox_key']) ? sanitize_text_field($_POST['metabox_key']) : '';
-        
-        if ( function_exists('lsc_helper_clear_metabox_option') ) {
-            $deleted_rows = lsc_helper_clear_metabox_option($meta_key);
-            
-            if ($deleted_rows !== false) {
-                echo '<div class="notice notice-success is-dismissible"><p>Successfully removed <strong>' . intval($deleted_rows) . '</strong> database records for <code>' . esc_html($meta_key) . '</code>.</p></div>';
-            } else {
-                echo '<div class="notice notice-error is-dismissible"><p>Invalid meta key or an error occurred.</p></div>';
-            }
-        }
-    }
-
-    // Process Fast Forward Image Optm
-    $img_optm_results = null;
-    if (isset($_POST['lsc_helper_action']) && in_array($_POST['lsc_helper_action'], ['analyze_img_optm', 'apply_img_optm'])) {
-        check_admin_referer('lsc_helper_img_optm'); // Check nonce ONLY if these specific actions are called
-        
-        if ($_POST['lsc_helper_action'] === 'analyze_img_optm') {
-            $img_optm_results = lsc_helper_analyze_image_optm(false); // Dry Run
-        } elseif ($_POST['lsc_helper_action'] === 'apply_img_optm') {
-            $img_optm_results = lsc_helper_analyze_image_optm(true);  // Apply State
-        }
-        
-        // Throw an error notice if the script fails execution limits or DB checks
-        if ($img_optm_results && $img_optm_results['status'] === 'error') {
-            echo '<div class="notice notice-error is-dismissible"><p>' . esc_html($img_optm_results['message']) . '</p></div>';
-        }
-    }
-
-    // Process Debug Actions
-    if(lsc_debug_test_if_debug_action()){
-    $action = lsc_debug_get_action();
-    if($action){
-        if ( ! current_user_can('manage_options') ) {
-            wp_die( esc_html__('Insufficient permissions.', 'litespeed-cache-helper') );
-        }
-
-        // GET "link" actions are protected by the URL nonce here.
-        // POST "form" actions (node / TTL updates) verify their own nonce inside the function.
-        if ( ! lsc_debug_action_self_verifies($action) ) {
-            check_admin_referer('lsc_debug_action_' . $action);
-        }
-
-        $function = lsc_debug_get_action_function($action);
-        if( function_exists($function) ){
-            try{
-                $function();
-                lsc_debug_function_run_ok($action);
-            }
-            catch(Exception $e){
-                lsc_debug_function_run_error($action);
-            }
-        }
-        else echo '<p>Incorrect function called.</p>';
-    }
-    else echo '<p>Incorrect action added.</p>';
-}
-
-    if( lsc_debug_show_admin_content() ){
+    if ( $lsc_render ) {
+        // Full-page action output (Server Info / Async Test) on a clean URL
+        echo '<div class="lsc-header-actions"><a href="' . esc_url(lsc_debug_clean_page_url()) . '" class="button">&larr; Go back to Dashboard</a></div>';
+        echo $lsc_render;
+    } else {
     ?>
 
     <div class="lsc-dashboard-layout">
@@ -344,7 +282,7 @@
                             Current Node: <?php echo esc_html($current_image_node); ?>
                         </div>
                         
-                        <form method="post" action="">
+                        <form method="post" action="<?php echo esc_url(lsc_debug_clean_page_url()); ?>">
                             <?php wp_nonce_field('litespeed_debug_redetect_image', 'litespeed_debug_nonce'); ?>
                             <input type="hidden" name="<?php echo esc_attr(LSCWP_DEBUG_PARAM_ACTION); ?>" value="redetect_image_node">
                             
@@ -385,7 +323,7 @@
                             ?>
                         </div>
 
-                        <form method="post" action="">
+                        <form method="post" action="<?php echo esc_url(lsc_debug_clean_page_url()); ?>">
                             <?php wp_nonce_field('litespeed_debug_redetect_page', 'litespeed_debug_nonce'); ?>
                             <input type="hidden" name="<?php echo esc_attr(LSCWP_DEBUG_PARAM_ACTION); ?>" value="redetect_page_node">
                             
@@ -425,7 +363,7 @@
                             <li><strong>VPI TTL:</strong> <?php echo esc_html($ttl_vpi); ?></li>
                         </ul>
 
-                        <form method="post" action="">
+                        <form method="post" action="<?php echo esc_url(lsc_debug_clean_page_url()); ?>">
                             <?php wp_nonce_field('litespeed_debug_reset_ttl', 'litespeed_debug_nonce'); ?>
                             <input type="hidden" name="<?php echo esc_attr(LSCWP_DEBUG_PARAM_ACTION); ?>" value="reset_ttl">
                             <button type="submit" class="button button-secondary">Reset TTL</button>
@@ -531,7 +469,7 @@
                         </div>
 
                         <div class="lsc-card-action" style="margin-top: 0; padding-top: 0;">
-                            <form method="post" action="">
+                            <form method="post" action="<?php echo esc_url(lsc_debug_clean_page_url()); ?>">
                                 <?php wp_nonce_field('lsc_helper_toggle_purge'); ?>
                                 <input type="hidden" name="lsc_helper_action" value="toggle_auto_purge">
                                 <button type="submit" class="button <?php echo $is_auto_purge_disabled ? 'button-primary' : 'button-secondary'; ?>">
