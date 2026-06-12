@@ -4,7 +4,7 @@
  * Plugin Name:       LiteSpeed Cache Helper
  * Plugin URI:        https://www.litespeedtech.com/products/cache-plugins/wordpress-acceleration
  * Description:       Helper plugin for LiteSpeed Cache
- * Version:           1.0.0
+ * Version:           1.0.1
  * Author:            LiteSpeed Technologies
  * Author URI:        https://www.litespeedtech.com
  * License:           GPLv3
