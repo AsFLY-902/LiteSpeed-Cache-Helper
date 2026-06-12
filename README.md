@@ -4,7 +4,7 @@ LiteSpeed Cache Helper is an advanced troubleshooting and companion plugin for t
 
 ## ✨ Features
 
-The plugin features a modern, tabbed UI that organizes tools into intuitive categories. As we continue to expand the plugin, you will find a growing suite of utilities covering:
+The plugin features a modern, tabbed UI that organizes tools into easy-to-navigate categories. As we continue to expand the plugin, you will find a growing suite of utilities covering:
 
 * **System Diagnostics:** Built-in tools to verify server environments, check IP routing headers, and test the health of background AJAX requests to ensure your server can communicate properly.
 * **QUIC.cloud Troubleshooting:** Quick-action clears to resolve common cloud connection penalties (like domain errors or failed node blocks) and instantly restores communication with QUIC.cloud services.
@@ -33,7 +33,7 @@ The dashboard uses a modern tabbed layout. Your active tab is saved locally in y
 
 ## 🛡️ Disclaimer
 
-This is a developer utility. Actions like **Clear All Settings** and manipulating the **Image Optimization post id** directly alter database states. Always ensure you have a complete database backup before performing resets or fast-forwarding the optimization queues.
+This is a developer utility. Actions like **Clear All Settings** and manipulating the **Image Optimization post id**, **LiteSpeed meta options** directly alter database states. Always ensure you have a complete database backup before performing resets or fast-forwarding the optimization queues.
 
 ## 📝 License
 
