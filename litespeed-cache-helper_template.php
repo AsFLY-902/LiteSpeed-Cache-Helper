@@ -243,22 +243,32 @@
 
     // Process Debug Actions
     if(lsc_debug_test_if_debug_action()){
-        $action = lsc_debug_get_action();
-        if($action){
-            $function = lsc_debug_get_action_function($action);
-            if( function_exists($function) ){
-                try{
-                    $function();
-                    lsc_debug_function_run_ok($action);
-                }
-                catch(Exception $e){
-                    lsc_debug_function_run_error($action);
-                }
-            }
-            else echo '<div class="notice notice-error"><p>Incorrect function called.</p></div>';
+    $action = lsc_debug_get_action();
+    if($action){
+        if ( ! current_user_can('manage_options') ) {
+            wp_die( esc_html__('Insufficient permissions.', 'litespeed-cache-helper') );
         }
-        else echo '<div class="notice notice-error"><p>Incorrect action added.</p></div>';
+
+        // GET "link" actions are protected by the URL nonce here.
+        // POST "form" actions (node / TTL updates) verify their own nonce inside the function.
+        if ( ! lsc_debug_action_self_verifies($action) ) {
+            check_admin_referer('lsc_debug_action_' . $action);
+        }
+
+        $function = lsc_debug_get_action_function($action);
+        if( function_exists($function) ){
+            try{
+                $function();
+                lsc_debug_function_run_ok($action);
+            }
+            catch(Exception $e){
+                lsc_debug_function_run_error($action);
+            }
+        }
+        else echo '<p>Incorrect function called.</p>';
     }
+    else echo '<p>Incorrect action added.</p>';
+}
 
     if( lsc_debug_show_admin_content() ){
     ?>
