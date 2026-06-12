@@ -189,7 +189,7 @@
         }
     </style>
 
-    <h1 class="wp-heading-inline page-title">LiteSpeed Cache Helper <small style="font-size: 13px; font-weight: 400; color: #646970; margin-left: 1px; vertical-align: middle;">v1.0.0</small></h1>
+    <h1 class="wp-heading-inline page-title">LiteSpeed Cache Helper <small style="font-size: 13px; font-weight: 400; color: #646970; margin-left: 1px; vertical-align: middle;">v1.0.1</small></h1>
     <hr class="wp-header-end">
 
     <?php
