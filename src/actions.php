@@ -108,15 +108,12 @@ function lsc_debug_clear_disabled_nodes(){
 }
 
 function lsc_debug_clear_settings(){
+    if ( ! current_user_can('manage_options') ) { return; }
     global $wpdb;
-    $table_name = $wpdb->prefix . 'options';
-    $table_name = "{$wpdb->prefix}options";
-    $wpdb->query( $wpdb->prepare( "DELETE FROM `$table_name` WHERE `option_name` like '%litespeed.%' " ) );
-
-
-    if ( defined( 'LSCWP_V' ) ) {
-        do_action( 'litespeed_purge_all' );
-    }
+    $wpdb->query(
+        "DELETE FROM {$wpdb->options} WHERE option_name LIKE 'litespeed.%'"
+    );
+    if ( defined('LSCWP_V') ) { do_action('litespeed_purge_all'); }
 }
 
 // ---------- Reset TTL ----------
