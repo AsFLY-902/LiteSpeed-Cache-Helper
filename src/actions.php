@@ -66,7 +66,7 @@ function lsc_debug_test_async($echo = true){
     $args = array(
         'timeout'   => 100,
         'blocking'  => true,
-        'sslverify' => false,
+        'sslverify' => true,
         // 'cookies'   => $_COOKIE,
     );
 
@@ -91,9 +91,7 @@ function lsc_debug_test_async($echo = true){
     }
 
     $html .= $status_explanation;
-    $html .= '<p><strong>Response Status Code:</strong> ' . $status_code . '</p>
-        <p><strong>Full Response:</strong></p>
-        <pre style="background-color: #fff; padding: 10px; overflow: auto; max-height: 300px;">'.print_r($result, true).'</pre>';
+    $html .= '<p><strong>Response Status Code:</strong> ' . intval($status_code) . '</p>';
 
     if($echo) echo $html;
     else return $html;
