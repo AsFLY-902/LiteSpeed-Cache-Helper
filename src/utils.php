@@ -21,7 +21,17 @@ function lsc_debug_get_action_function($action){
 
 // Admin Create admin link
 function lsc_debug_admin_create_link($action = false){
-    return '?page=litespeed-debug' . ( $action ? '&'.LSCWP_DEBUG_PARAM_ACTION.'='.$action : '' );
+    $url = admin_url('admin.php?page=litespeed-debug');
+    if ($action) {
+        $url = add_query_arg(LSCWP_DEBUG_PARAM_ACTION, $action, $url);
+        $url = wp_nonce_url($url, 'lsc_debug_action_' . $action);
+    }
+    return $url;
+}
+
+// Whether this action verifies its own nonce inside its function (POST forms)
+function lsc_debug_action_self_verifies($action){
+    return ! empty(LSCWP_DEBUG_ACTIONS_FUNCTIONS[$action]['self_nonce']);
 }
 
 // Admin Show Back link
