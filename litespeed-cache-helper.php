@@ -59,6 +59,45 @@ function lsc_helper_apply_disable_auto_purge() {
 }
 
 // Fast Forward Image Optimization Position
+function lsc_helper_attachment_has_optimized_file( $id ) {
+    $mime_type = get_post_mime_type( $id );
+    if ( in_array( $mime_type, ['image/webp', 'image/avif'], true ) ) {
+        return true;
+    }
+
+    $full_path = get_attached_file( $id );
+    if ( empty( $full_path ) || ! file_exists( $full_path ) ) {
+        return false;
+    }
+
+    $paths = [$full_path];
+    $metadata = wp_get_attachment_metadata( $id );
+    if ( ! empty( $metadata['sizes'] ) && is_array( $metadata['sizes'] ) ) {
+        $upload_dir = wp_get_upload_dir();
+        $relative_dir = ! empty( $metadata['file'] ) ? dirname( $metadata['file'] ) : '';
+        $base_dir = trailingslashit( $upload_dir['basedir'] );
+
+        foreach ( $metadata['sizes'] as $size ) {
+            if ( empty( $size['file'] ) ) {
+                continue;
+            }
+
+            $size_path = $base_dir . ( $relative_dir && $relative_dir !== '.' ? trailingslashit( $relative_dir ) : '' ) . $size['file'];
+            if ( file_exists( $size_path ) ) {
+                $paths[] = $size_path;
+            }
+        }
+    }
+
+    foreach ( array_unique( $paths ) as $path ) {
+        if ( file_exists( $path . '.webp' ) || file_exists( $path . '.avif' ) ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function lsc_helper_analyze_image_optm( $apply = false ) {
     if ( ! is_admin() || ! current_user_can('manage_options') ) {
         return ['status' => 'error', 'message' => 'Unauthorized access.'];
@@ -82,31 +121,15 @@ function lsc_helper_analyze_image_optm( $apply = false ) {
     $unoptimized_count = 0;
 
     foreach ( $attachment_ids as $id ) {
-        $optimized = false;
-
-        // 1. Check LiteSpeed Metadata
-        if ( get_post_meta( $id, 'litespeed-optimize-size', true ) || get_post_meta( $id, 'litespeed-optimize-set', true ) ) {
-            $optimized = true;
-        }
-
-        // 2. Check Physical Files and Native Upload Types
-        if ( ! $optimized ) {
-            $mime_type = get_post_mime_type( $id );
-            if ( in_array( $mime_type, ['image/webp', 'image/avif'] ) ) {
-                $optimized = true;
-            } else {
-                $full_path = get_attached_file( $id );
-                if ( ! empty( $full_path ) ) {
-                    if ( file_exists( $full_path . '.webp' ) || file_exists( $full_path . '.avif' ) ) {
-                        $optimized = true;
-                    }
-                }
-            }
-        }
+        // LiteSpeed metadata can become stale if optimized files are deleted manually.
+        // Always verify the generated files before treating an attachment group as optimized.
+        $optimized = lsc_helper_attachment_has_optimized_file( $id );
 
         if ( $optimized ) {
-            $optimized_count++;
-            $last_optimized_id = (int) $id; // Move the post id forward
+            if ( $first_pending_id === -1 ) {
+                $optimized_count++;
+                $last_optimized_id = (int) $id; // Only fast-forward through the contiguous optimized prefix.
+            }
         } else {
             $unoptimized_count++;
             if ( $first_pending_id === -1 ) {
@@ -115,7 +138,7 @@ function lsc_helper_analyze_image_optm( $apply = false ) {
         }
     }
 
-    // Set target to the last confirmed optimized image so LiteSpeed resumes scanning immediately after it
+    // Set target to the last confirmed optimized image before the first pending image so LiteSpeed resumes there.
     $cursor_target = $last_optimized_id;
 
     $result = [
