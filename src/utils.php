@@ -140,6 +140,20 @@ function lsc_debug_handle_actions(){
 			}
 			$did_action = true;
 		}
+		elseif ( $helper_action === 'purge_ccss_urls' && check_admin_referer('lsc_helper_purge_ccss') ) {
+			$ids  = isset($_POST['ccss_url_ids']) ? array_map('intval', (array) $_POST['ccss_url_ids']) : array();
+			$done = $ids && function_exists('lsc_helper_purge_ccss_urls') ? lsc_helper_purge_ccss_urls($ids) : false;
+			if ( $done ) {
+				$list = array();
+				foreach ( $done as $d ) {
+					$list[] = '<code>' . esc_html($d['url']) . '</code> (' . intval($d['rows']) . ')';
+				}
+				$notices[] = array('success', 'CCSS expired for:<br>' . implode('<br>', $list) . '<br>Visit these pages once so they are re-queued for CCSS generation.');
+			} else {
+				$notices[] = array('error', 'No CCSS entries selected or nothing was purged.');
+			}
+			$did_action = true;
+		}
 		elseif ( in_array($helper_action, array('analyze_img_optm', 'apply_img_optm'), true) && check_admin_referer('lsc_helper_img_optm') ) {
 			$img_optm = lsc_helper_analyze_image_optm( $helper_action === 'apply_img_optm' );
 			if ( $img_optm && $img_optm['status'] === 'error' ) {
