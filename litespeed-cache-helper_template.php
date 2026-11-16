@@ -218,6 +218,7 @@
             <button class="lsc-tab-btn" data-target="tab-quic-cloud">QUIC.cloud Fixes</button>
             <button class="lsc-tab-btn" data-target="tab-nodes">Node Management</button>
             <button class="lsc-tab-btn" data-target="tab-extras">LiteSpeed Cache Extra</button>
+            <button class="lsc-tab-btn" data-target="tab-ccss-purge">Purge CCSS per URL</button>
         </div>
 
         <div class="lsc-main-content">
@@ -376,67 +377,84 @@
                 <h2 class="lsc-section-title">LiteSpeed Cache Extra</h2>
                 <div class="lsc-grid">
 
-                <div class="lsc-card lsc-info-card">
-    <h3>Fast Forward Image Optimization</h3>
-    <p style="margin-bottom: 12px;">Skip already optimized image groups and move the LiteSpeed image post id position directly to the first genuinely unoptimized image. This prevents scanning thousands of images/groups after a reset.</p>
+                    <div class="lsc-card lsc-info-card">
+                        <h3>Fast Forward Image Optimization</h3>
+                        <p style="margin-bottom: 12px;">Skip already optimized image groups and move the LiteSpeed image post id position directly to the first genuinely unoptimized image. This prevents scanning thousands of images/groups after a reset.</p>
 
-    <?php 
-    // Fetch Current Position and Max ID
-    $current_next_post_id = '-';
-    if (class_exists('\LiteSpeed\Img_Optm')) {
-        $optm_summary = \LiteSpeed\Img_Optm::get_summary();
-        $current_next_post_id = isset($optm_summary['next_post_id']) ? $optm_summary['next_post_id'] : '-';
-    }
-    
-    global $wpdb;
-    
-    $max_attachment_id = $wpdb->get_var("SELECT MAX(ID) FROM {$wpdb->posts} WHERE post_type = 'attachment' AND post_mime_type IN ('image/jpeg', 'image/png', 'image/gif')");
-    $max_attachment_id = $max_attachment_id ? $max_attachment_id : '-';
-    ?>
+                        <?php
+                        // Fetch Current Position and Max ID
+                        $current_next_post_id = '-';
+                        if (class_exists('\LiteSpeed\Img_Optm')) {
+                            $optm_summary = \LiteSpeed\Img_Optm::get_summary();
+                            $current_next_post_id = isset($optm_summary['next_post_id']) ? $optm_summary['next_post_id'] : '-';
+                        }
 
-    <ul style="margin: 0 0 15px 0; padding: 0; list-style: none; color: #50575e; font-size: 13px;">
-        <li style="margin-bottom: 5px;"><strong>Current image post id position:</strong> <?php echo esc_html($current_next_post_id); ?></li>
-        <li><strong>Maximum image post id:</strong> <?php echo esc_html($max_attachment_id); ?></li>
-    </ul>
+                        global $wpdb;
 
-    <?php if ($img_optm_results && $img_optm_results['status'] === 'success'): ?>
-            <div class="lsc-status-box" style="margin-top: auto; border-color: #00a32a; background-color: #f0fcf4;">
-                <ul style="margin: 0 0 8px 0; padding: 0; list-style: none;">
-                    <li><strong>Optimized Images Skipped:</strong> <?php echo esc_html($img_optm_results['optimized_count']); ?> image groups</li>
-                    <li><strong>Unoptimized Remaining:</strong> <?php echo esc_html($img_optm_results['unoptimized_count']); ?> image groups</li>
-                    <li><strong>Next Pending image post id:</strong> <?php echo $img_optm_results['first_pending_id'] !== -1 ? esc_html($img_optm_results['first_pending_id']) : 'None'; ?></li>
-                </ul>
-                <?php if (!empty($img_optm_results['message'])): ?>
-                    <span style="color: #00a32a; font-weight: 700;"><?php echo esc_html($img_optm_results['message']); ?></span>
-                <?php endif; ?>
-            </div>
-    <?php endif; ?>
+                        $max_attachment_id = $wpdb->get_var("SELECT MAX(ID) FROM {$wpdb->posts} WHERE post_type = 'attachment' AND post_mime_type IN ('image/jpeg', 'image/png', 'image/gif')");
+                        $max_attachment_id = $max_attachment_id ? $max_attachment_id : '-';
+                        $img_optm_start_after = $img_optm_results && isset($img_optm_results['last_scanned_id']) && !empty($img_optm_results['has_more']) ? (int) $img_optm_results['last_scanned_id'] : (is_numeric($current_next_post_id) ? (int) $current_next_post_id : 0);
+                        $img_optm_batch_limit = $img_optm_results && isset($img_optm_results['batch_limit']) ? (int) $img_optm_results['batch_limit'] : 1000;
+                        ?>
 
-        <div class="lsc-card-action" style="margin-top: <?php echo ($img_optm_results && $img_optm_results['status'] === 'success') ? '0' : 'auto'; ?>; padding-top: 0; display: flex; gap: 10px;">
-            <form method="post" action="" style="flex: 1;">
-                <?php wp_nonce_field('lsc_helper_img_optm'); ?>
-                <input type="hidden" name="lsc_helper_action" value="analyze_img_optm">
-                <button type="submit" class="button button-secondary" style="width: 100%;">Analyze (Dry Run)</button>
-            </form>
-            
-            <form method="post" action="" style="flex: 1;" onsubmit="return confirm('Are you sure you want to fast-forward the optimization position?');">
-                <?php wp_nonce_field('lsc_helper_img_optm'); ?>
-                <input type="hidden" name="lsc_helper_action" value="apply_img_optm">
-                <button type="submit" class="button button-primary" style="width: 100%;">Confirm & Apply</button>
-            </form>
-        </div>
+                        <ul style="margin: 0 0 15px 0; padding: 0; list-style: none; color: #50575e; font-size: 13px;">
+                            <li style="margin-bottom: 5px;"><strong>Current image post id position:</strong> <?php echo esc_html($current_next_post_id); ?></li>
+                            <li style="margin-bottom: 5px;"><strong>Maximum image post id:</strong> <?php echo esc_html($max_attachment_id); ?></li>
+                            <li><strong>Recommended large-site workflow:</strong> scan/apply in batches to avoid web server timeouts.</li>
+                        </ul>
 
+                        <?php if ($img_optm_results && $img_optm_results['status'] === 'success'): ?>
+                            <div class="lsc-status-box" style="margin-top: auto; border-color: #00a32a; background-color: #f0fcf4;">
+                                <ul style="margin: 0 0 8px 0; padding: 0; list-style: none;">
+                                    <li><strong>Batch Start After ID:</strong> <?php echo esc_html($img_optm_results['start_after']); ?></li>
+                                    <li><strong>Batch Size:</strong> <?php echo esc_html($img_optm_results['processed_count']); ?> / <?php echo esc_html($img_optm_results['batch_limit']); ?> image groups</li>
+                                    <li><strong>Optimized Images Skipped:</strong> <?php echo esc_html($img_optm_results['optimized_count']); ?> image groups</li>
+                                    <li><strong>Unoptimized Found In Batch:</strong> <?php echo esc_html($img_optm_results['unoptimized_count']); ?> image groups</li>
+                                    <li><strong>Next Pending image post id:</strong> <?php echo $img_optm_results['first_pending_id'] !== -1 ? esc_html($img_optm_results['first_pending_id']) : 'None in this batch'; ?></li>
+                                    <li><strong>Last Scanned image post id:</strong> <?php echo esc_html($img_optm_results['last_scanned_id']); ?></li>
+                                    <li><strong>More Images After Batch:</strong> <?php echo !empty($img_optm_results['has_more']) ? 'Yes' : 'No'; ?></li>
+                                </ul>
+                                <?php if (!empty($img_optm_results['message'])): ?>
+                                    <span style="color: #00a32a; font-weight: 700;"><?php echo esc_html($img_optm_results['message']); ?></span>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
 
-</div>
+                        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                            <label style="flex: 1;">Start after post ID
+                                <input type="number" form="lsc-img-optm-analyze" name="lsc_helper_img_optm_start_after" value="<?php echo esc_attr($img_optm_start_after); ?>" min="0" style="width: 100%;">
+                            </label>
+                            <label style="flex: 1;">Batch size
+                                <input type="number" form="lsc-img-optm-analyze" name="lsc_helper_img_optm_batch_limit" value="<?php echo esc_attr($img_optm_batch_limit); ?>" min="25" max="5000" step="25" style="width: 100%;">
+                            </label>
+                        </div>
+                        <p style="margin-top: 0; color: #646970; font-size: 13px;">For very large libraries, use a batch size such as 500-1000. If a batch reports no pending images and more images remain, run Confirm & Apply, then continue with the next suggested start ID.</p>
+
+                        <div class="lsc-card-action" style="margin-top: <?php echo ($img_optm_results && $img_optm_results['status'] === 'success') ? '0' : 'auto'; ?>; padding-top: 0; display: flex; gap: 10px;">
+                            <form id="lsc-img-optm-analyze" method="post" action="" style="flex: 1;">
+                                <?php wp_nonce_field('lsc_helper_img_optm'); ?>
+                                <input type="hidden" name="lsc_helper_action" value="analyze_img_optm">
+                                <button type="submit" class="button button-secondary" style="width: 100%;">Analyze (Dry Run)</button>
+                            </form>
+
+                            <form method="post" action="" style="flex: 1;" onsubmit="return confirm('Are you sure you want to fast-forward the optimization position?');">
+                                <?php wp_nonce_field('lsc_helper_img_optm'); ?>
+                                <input type="hidden" name="lsc_helper_action" value="apply_img_optm">
+                                <input type="hidden" name="lsc_helper_img_optm_start_after" value="<?php echo esc_attr($img_optm_start_after); ?>">
+                                <input type="hidden" name="lsc_helper_img_optm_batch_limit" value="<?php echo esc_attr($img_optm_batch_limit); ?>">
+                                <button type="submit" class="button button-primary" style="width: 100%;">Confirm & Apply</button>
+                            </form>
+                        </div>
+                    </div>
 
                     <div class="lsc-card lsc-clear-card">
                         <h3>LiteSpeed Options Metabox</h3>
                         <p style="margin-bottom: 12px;">Bulk Turn OFF / Clear specific LiteSpeed metabox settings that were applied to individual posts, pages, or custom post types.</p>
-                        
+
                         <form method="post" action="" onsubmit="return confirm('Are you sure you want to permanently delete these overrides from all posts? This action cannot be undone.');" style="display: flex; flex-direction: column; flex-grow: 1;">
                             <?php wp_nonce_field('lsc_helper_clear_metabox'); ?>
                             <input type="hidden" name="lsc_helper_action" value="clear_metabox_option">
-                            
+
                             <label for="metabox_key_select">Select options to Turn OFF / Clear:</label>
                             <select id="metabox_key_select" name="metabox_key" style="margin-bottom: 15px;">
                                 <option value="litespeed_no_cache">Turn OFF "Disable Cache"</option>
@@ -445,25 +463,23 @@
                                 <option value="litespeed_vpi_list">Clear "Viewport Images" List</option>
                                 <option value="litespeed_vpi_list_mobile">Clear "Viewport Images - Mobile" List</option>
                             </select>
-                            
+
                             <div class="lsc-card-action" style="margin-top: auto; padding-top: 0;">
                                 <button type="submit" class="button button-secondary">Clear Selected Option</button>
                             </div>
                         </form>
                     </div>
-                    
-                   
 
                     <div class="lsc-card lsc-warning-card">
                         <h3>Disable Auto Purge</h3>
                         <p style="margin-bottom: 12px;">When enabled, no automatic cache purge will occur. <a href="https://docs.litespeedtech.com/lscache/lscwp/troubleshoot/#disable-auto-purge" target="_blank" rel="noopener noreferrer">Learn more</a>.</p>
-                        
+
                         <blockquote class="lsc-warning-quote">
                             <strong>Note:</strong> This option is recommended only for sites that do not actively or frequently update content. If you disable auto purge, you MUST purge the cache manually any time content on your site changes, or you run the risk of serving stale content.
                         </blockquote>
 
                         <?php $is_auto_purge_disabled = get_option('lsc_helper_disable_auto_purge', 'no') === 'yes'; ?>
-                        
+
                         <div class="lsc-status-box" style="margin-top: auto; border-color: <?php echo $is_auto_purge_disabled ? '#d63638' : '#00a32a'; ?>; background-color: <?php echo $is_auto_purge_disabled ? '#fcf0f1' : '#f0fcf4'; ?>">
                             Status: <?php echo $is_auto_purge_disabled ? '<span style="color:#d63638;">Auto Purge is OFF (Disabled)</span>' : '<span style="color:#00a32a;">Auto Purge is ON (Normal)</span>'; ?>
                         </div>
@@ -488,6 +504,52 @@
                         </div>
                     </div>
 
+                </div>
+            </div>
+
+            <div id="tab-ccss-purge" class="lsc-tab-content">
+                <h2 class="lsc-section-title">Purge CCSS per URL</h2>
+                <div class="lsc-card lsc-info-card">
+                    <h3>Purge CCSS for selected URLs</h3>
+                    <p style="margin-bottom: 12px;">Expire the Critical CSS of selected URLs only, so it is regenerated without purging CCSS for all pages. After purging, visit the page once to put it back into the CCSS queue.</p>
+
+                    <blockquote class="lsc-warning-quote">
+                        <strong>Note:</strong> Entries that are not full URLs (e.g. <code>page</code>, <code>home</code>, <code>post</code>) are shared by every page of that type. To purge CCSS for a single page, either turn ON <em>Page Optimization &gt; CSS Settings &gt; CCSS Per URL</em>, or add the page to <em>Page Optimization &gt; Tuning - CSS &gt; Separate CCSS Cache URIs</em>. Then visit the page once so it appears here.
+                    </blockquote>
+
+                    <?php $lsc_ccss_entries = function_exists('lsc_helper_get_ccss_entries') ? lsc_helper_get_ccss_entries() : array(); ?>
+
+                    <?php if ( empty($lsc_ccss_entries) ) : ?>
+                        <div class="lsc-status-box">No CCSS entries found.</div>
+                    <?php else : ?>
+                        <form method="post" action="<?php echo esc_url(lsc_debug_clean_page_url()); ?>" onsubmit="return confirm('Purge CCSS for the selected URLs?');">
+                            <?php wp_nonce_field('lsc_helper_purge_ccss'); ?>
+                            <input type="hidden" name="lsc_helper_action" value="purge_ccss_urls">
+
+                            <div style="max-height: 450px; overflow-y: auto; margin-bottom: 15px;">
+                                <table class="widefat striped">
+                                    <thead>
+                                        <tr>
+                                            <td class="check-column" style="padding: 8px 0 0 3px;"><input type="checkbox" id="lsc_ccss_check_all"></td>
+                                            <th>URL tag</th>
+                                            <th style="width: 80px;">Variants</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ( $lsc_ccss_entries as $lsc_ccss_row ) : ?>
+                                            <tr>
+                                                <th scope="row" class="check-column" style="padding: 8px 0 0 3px;"><input type="checkbox" class="lsc-ccss-check" name="ccss_url_ids[]" value="<?php echo intval($lsc_ccss_row['id']); ?>"></th>
+                                                <td style="word-break: break-all;"><?php echo esc_html($lsc_ccss_row['url']); ?></td>
+                                                <td><?php echo intval($lsc_ccss_row['variants']); ?></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <button type="submit" class="button button-primary">Purge Selected CCSS</button>
+                        </form>
+                    <?php endif; ?>
                 </div>
             </div>
 
@@ -543,6 +605,14 @@
             updateNodeOptions();
         }
 
+        // Purge CCSS per URL: select all
+        const lscCcssCheckAll = document.getElementById('lsc_ccss_check_all');
+        if (lscCcssCheckAll) {
+            lscCcssCheckAll.addEventListener('change', function() {
+                document.querySelectorAll('.lsc-ccss-check').forEach(cb => cb.checked = this.checked);
+            });
+        }
+
         // --- Tab Selection Persistence ---
         document.addEventListener('DOMContentLoaded', function() {
             const tabs = document.querySelectorAll('.lsc-tab-btn');
@@ -578,4 +648,4 @@
     </script>
 
     <?php } ?>
-</div>
+</div>          
