@@ -4,7 +4,7 @@
  * Plugin Name:       LiteSpeed Cache Helper
  * Plugin URI:        https://www.litespeedtech.com/products/cache-plugins/wordpress-acceleration
  * Description:       Helper plugin for LiteSpeed Cache
- * Version:           1.0.1
+ * Version:           1.0.3
  * Author:            LiteSpeed Technologies
  * Author URI:        https://www.litespeedtech.com
  * License:           GPLv3
@@ -193,4 +193,79 @@ function lsc_helper_clear_metabox_option( $meta_key ) {
     }
 
     return false;
+}
+
+// Purge CCSS per URL
+function lsc_helper_ccss_tables() {
+    global $wpdb;
+    $tb_url  = $wpdb->prefix . 'litespeed_url';
+    $tb_file = $wpdb->prefix . 'litespeed_url_file';
+
+    if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tb_url ) ) !== $tb_url
+        || $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tb_file ) ) !== $tb_file ) {
+        return false;
+    }
+
+    return [ $tb_url, $tb_file ];
+}
+
+function lsc_helper_get_ccss_entries() {
+    global $wpdb;
+
+    $tables = lsc_helper_ccss_tables();
+    if ( ! $tables ) {
+        return [];
+    }
+    list( $tb_url, $tb_file ) = $tables;
+
+    // type 3 = ccss in LiteSpeed\Data::$_url_file_types
+    return $wpdb->get_results(
+        "SELECT u.id, u.url, COUNT(*) AS variants
+         FROM `$tb_url` u
+         JOIN `$tb_file` f ON f.url_id = u.id
+         WHERE f.type = 3 AND f.expired = 0
+         GROUP BY u.id, u.url
+         ORDER BY u.url",
+        ARRAY_A
+    );
+}
+
+function lsc_helper_purge_ccss_urls( $url_ids ) {
+    if ( ! is_admin() || ! current_user_can('manage_options') ) {
+        return false;
+    }
+
+    global $wpdb;
+
+    $tables = lsc_helper_ccss_tables();
+    if ( ! $tables ) {
+        return false;
+    }
+    list( $tb_url, $tb_file ) = $tables;
+
+    // Same expiry LiteSpeed uses in Data::mark_as_expired() so old files are cleaned up later.
+    $expired = time() + 86400 * apply_filters( 'litespeed_url_file_expired_days', 20 );
+    $done    = [];
+
+    foreach ( array_unique( array_filter( array_map( 'intval', (array) $url_ids ) ) ) as $url_id ) {
+        $url = $wpdb->get_var( $wpdb->prepare( "SELECT url FROM `$tb_url` WHERE id = %d", $url_id ) );
+        if ( ! $url ) {
+            continue;
+        }
+
+        $rows = (int) $wpdb->query( $wpdb->prepare(
+            "UPDATE `$tb_file` SET expired = %d WHERE url_id = %d AND type = 3 AND expired = 0",
+            $expired,
+            $url_id
+        ) );
+
+        // CCSS is inlined in the HTML, so purge the cached page too (only possible for real URLs).
+        if ( $rows && 0 === strpos( $url, 'http' ) ) {
+            do_action( 'litespeed_purge_url', $url );
+        }
+
+        $done[] = [ 'url' => $url, 'rows' => $rows ];
+    }
+
+    return $done;
 }
